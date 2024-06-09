@@ -7,10 +7,10 @@ export class AppController {
 
   @Get(':socketId')
   getActiveUsers(@Param('socketId') socketId: string) {
-    let user = this.userService.getActiveUser(socketId);
+    const user = this.userService.getActiveUser(socketId);
     return {
       data: user,
-      message: 'Success'
-    }
+      message: 'Success',
+    };
   }
 }
