@@ -1,3 +1,4 @@
+import { UseGuards } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -6,28 +7,37 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server } from 'socket.io';
-import { Message } from 'src/interface/message.interface';
-import { UserService } from 'src/services/user.service';
+import { IMessage } from 'src/interface/message.interface';
+import { UsersService } from 'src/users/users.service';
+import { SocketGuard } from './socket.guard';
+import { Socket } from 'socket.io';
+import { SocketMiddleware } from './socket.middleware';
 
 @WebSocketGateway({
   cors: {
     origin: '*',
   },
 })
-export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
+@UseGuards(SocketGuard)
+export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  constructor(private userService: UserService) { }
+  constructor(private userService: UsersService) { }
 
-  handleConnection(client: any) {
+  afterInit(server: Server) {
+    server.use(SocketMiddleware())
+  }
+
+  handleConnection(client: Socket) {
     console.log('Connected', client.id);
     this.userService.newUser(client.id);
   }
 
-  handleDisconnect(client: any) {
+  handleDisconnect(client: Socket) {
     console.log('Disconnected', client.id);
     const user = this.userService.getUserById(client.id);
     if (user && this.server.sockets.sockets.get(user.connected_to)) {
@@ -38,14 +48,14 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('message')
-  handleMessage(@MessageBody() message: Message) {
+  handleMessage(@MessageBody() message: IMessage) {
     this.server.to(message.to).emit('on-message', message);
   }
 
   @SubscribeMessage('connect-user')
   handleUserConnect(
     @MessageBody() otherUserSocketId: string,
-    @ConnectedSocket() client: any,
+    @ConnectedSocket() client: Socket,
   ) {
     this.userService.setUserConnected(otherUserSocketId, client.id);
     this.userService.setUserConnected(client.id, otherUserSocketId);
