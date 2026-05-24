@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ONLINE
+  AWAY
+  OFFLINE
+}
+
+enum ChannelType {
+  PUBLIC
+  PRIVATE
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id          String     @id @default(cuid())
+  email       String     @unique
+  username    String     @unique
+  displayName String
+  password    String
+  avatarUrl   String?
+  status      UserStatus @default(OFFLINE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  channelMemberships ChannelMember[]
+  messages           Message[]
+  reactions          Reaction[]
+  sentDMs            DirectMessage[] @relation("DMSender")
+  receivedDMs        DirectMessage[] @relation("DMReceiver")
+}
+
+model Channel {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  type        ChannelType @default(PUBLIC)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  members  ChannelMember[]
+  messages Message[]
+}
+
+model ChannelMember {
+  userId    String
+  channelId String
+  role      MemberRole @default(MEMBER)
+  joinedAt  DateTime   @default(now())
+  lastRead  DateTime   @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([userId, channelId])
+}
+
+model Message {
+  id        String    @id @default(cuid())
+  content   String
+  isAI      Boolean   @default(false)
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  userId    String
+  channelId String
+  parentId  String?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  parent    Message?   @relation("ThreadReplies", fields: [parentId], references: [id])
+  replies   Message[]  @relation("ThreadReplies")
+  reactions Reaction[]
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  createdAt DateTime @default(now())
+
+  userId    String
+  messageId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId, emoji])
+}
+
+model DirectMessage {
+  id        String   @id @default(cuid())
+  content   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  senderId   String
+  receiverId String
+
+  sender   User @relation("DMSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("DMReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
