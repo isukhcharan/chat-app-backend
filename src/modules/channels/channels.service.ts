@@ -4,6 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
 
 const MESSAGE_SELECT = {
@@ -28,7 +29,7 @@ const MESSAGE_SELECT = {
 
 @Injectable()
 export class ChannelsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private redis: RedisService) {}
 
   async create(userId: string, dto: CreateChannelDto) {
     const name = dto.name.toLowerCase().replace(/\s+/g, '-');
@@ -95,11 +96,11 @@ export class ChannelsService {
     if (!channel) throw new NotFoundException('Channel not found');
     if (channel.type === 'PRIVATE') throw new ForbiddenException('Cannot join private channel');
 
-    return this.prisma.channelMember.upsert({
+    const existing = await this.prisma.channelMember.findUnique({
       where: { userId_channelId: { userId, channelId } },
-      create: { userId, channelId },
-      update: {},
     });
+    if (existing) return existing;
+    return this.prisma.channelMember.create({ data: { userId, channelId } });
   }
 
   async leave(channelId: string, userId: string) {
@@ -119,6 +120,12 @@ export class ChannelsService {
       if (!member) throw new ForbiddenException('Access denied');
     }
 
+    // Serve from cache for the default (no cursor) case
+    if (!cursor) {
+      const cached = await this.redis.getMessages(channelId);
+      if (cached) return cached;
+    }
+
     const messages = await this.prisma.message.findMany({
       where: { channelId, parentId: null },
       select: MESSAGE_SELECT,
@@ -127,7 +134,9 @@ export class ChannelsService {
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
-    return messages.reverse();
+    const result = messages.reverse();
+    if (!cursor) this.redis.setMessages(channelId, result); // populate cache, fire-and-forget
+    return result;
   }
 
   async getThreadReplies(messageId: string) {

@@ -43,6 +43,14 @@ export class MessagesService {
     });
   }
 
+  // Used when the ID is pre-generated (background Postgres write after Redis confirm)
+  async createWithId(id: string, channelId: string, userId: string, dto: CreateMessageDto) {
+    return this.prisma.message.create({
+      data: { id, content: dto.content, channelId, userId, parentId: dto.parentId },
+      select: MESSAGE_SELECT,
+    });
+  }
+
   async createAIMessage(channelId: string, content: string, botUserId: string) {
     return this.prisma.message.create({
       data: { content, channelId, userId: botUserId, isAI: true },

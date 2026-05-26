@@ -50,11 +50,14 @@ export class AuthService {
       where: { name: 'general' },
     });
     if (general) {
-      await this.prisma.channelMember.upsert({
+      const exists = await this.prisma.channelMember.findUnique({
         where: { userId_channelId: { userId: user.id, channelId: general.id } },
-        create: { userId: user.id, channelId: general.id },
-        update: {},
       });
+      if (!exists) {
+        await this.prisma.channelMember.create({
+          data: { userId: user.id, channelId: general.id },
+        });
+      }
     }
 
     const token = this.signToken(user.id, user.username);
