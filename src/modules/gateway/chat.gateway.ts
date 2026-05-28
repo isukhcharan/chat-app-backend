@@ -121,7 +121,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleMessage(
     @ConnectedSocket() client: AuthSocket,
     @MessageBody()
-    data: { channelId: string; content: string; parentId?: string },
+    data: { channelId: string; content: string; parentId?: string; attachments?: any[] },
   ) {
     if (!client.userId) return; // auth still in-flight
 
@@ -138,6 +138,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       editedAt: null,
       channelId: data.channelId,
       parentId,
+      attachments: data.attachments ?? [],
       user: {
         id: client.userId,
         username: client.username,
@@ -166,6 +167,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.messagesService.createWithId(id, data.channelId, client.userId, {
       content: data.content,
       parentId: data.parentId,
+      attachments: data.attachments,
     }).catch((err) => console.error('[DB write failed]', err));
 
     // Handle /ai command

@@ -14,6 +14,7 @@ const MESSAGE_SELECT = {
   createdAt: true,
   editedAt: true,
   parentId: true,
+  attachments: true,
   user: {
     select: { id: true, username: true, displayName: true, avatarUrl: true },
   },

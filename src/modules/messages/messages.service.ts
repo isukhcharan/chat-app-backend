@@ -14,6 +14,7 @@ const MESSAGE_SELECT = {
   editedAt: true,
   parentId: true,
   channelId: true,
+  attachments: true,
   user: {
     select: { id: true, username: true, displayName: true, avatarUrl: true },
   },
@@ -44,9 +45,9 @@ export class MessagesService {
   }
 
   // Used when the ID is pre-generated (background Postgres write after Redis confirm)
-  async createWithId(id: string, channelId: string, userId: string, dto: CreateMessageDto) {
+  async createWithId(id: string, channelId: string, userId: string, dto: CreateMessageDto & { attachments?: any[] }) {
     return this.prisma.message.create({
-      data: { id, content: dto.content, channelId, userId, parentId: dto.parentId },
+      data: { id, content: dto.content, channelId, userId, parentId: dto.parentId, attachments: dto.attachments ?? [] },
       select: MESSAGE_SELECT,
     });
   }

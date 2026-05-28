@@ -68,12 +68,13 @@ model ChannelMember {
 }
 
 model Message {
-  id        String    @id @default(cuid())
-  content   String
-  isAI      Boolean   @default(false)
-  editedAt  DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  content     String
+  isAI        Boolean   @default(false)
+  editedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  attachments Json      @default("[]")
 
   userId    String
   channelId String
