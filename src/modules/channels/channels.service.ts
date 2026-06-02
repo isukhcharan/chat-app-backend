@@ -30,32 +30,30 @@ const MESSAGE_SELECT = {
 
 @Injectable()
 export class ChannelsService {
-  constructor(private prisma: PrismaService, private redis: RedisService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
-  async create(userId: string, dto: CreateChannelDto) {
+  async create(userId: string, workspaceId: string, dto: CreateChannelDto) {
     const name = dto.name.toLowerCase().replace(/\s+/g, '-');
 
-    const channel = await this.prisma.channel.create({
+    return this.prisma.channel.create({
       data: {
         name,
         description: dto.description,
         type: dto.type || 'PUBLIC',
-        members: {
-          create: { userId, role: 'OWNER' },
-        },
+        workspaceId,
+        members: { create: { userId, role: 'OWNER' } },
       },
     });
-
-    return channel;
   }
 
-  async findAll(userId: string) {
-    return this.prisma.channel.findMany({
+  async findAll(userId: string, workspaceId: string) {
+    const channels = await this.prisma.channel.findMany({
       where: {
-        OR: [
-          { type: 'PUBLIC' },
-          { members: { some: { userId } } },
-        ],
+        workspaceId,
+        OR: [{ type: 'PUBLIC' }, { members: { some: { userId } } }],
       },
       include: {
         _count: { select: { members: true } },
@@ -66,6 +64,21 @@ export class ChannelsService {
       },
       orderBy: { name: 'asc' },
     });
+
+    return Promise.all(
+      channels.map(async (ch) => {
+        const lastRead = ch.members[0]?.lastRead ?? new Date(0);
+        const unreadCount = await this.prisma.message.count({
+          where: {
+            channelId: ch.id,
+            parentId: null,
+            createdAt: { gt: lastRead },
+            userId: { not: userId },
+          },
+        });
+        return { ...ch, unreadCount };
+      }),
+    );
   }
 
   async findOne(channelId: string, userId: string) {
@@ -75,7 +88,13 @@ export class ChannelsService {
         members: {
           include: {
             user: {
-              select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+                status: true,
+              },
             },
           },
         },
@@ -93,9 +112,12 @@ export class ChannelsService {
   }
 
   async join(channelId: string, userId: string) {
-    const channel = await this.prisma.channel.findUnique({ where: { id: channelId } });
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+    });
     if (!channel) throw new NotFoundException('Channel not found');
-    if (channel.type === 'PRIVATE') throw new ForbiddenException('Cannot join private channel');
+    if (channel.type === 'PRIVATE')
+      throw new ForbiddenException('Cannot join private channel');
 
     const existing = await this.prisma.channelMember.findUnique({
       where: { userId_channelId: { userId, channelId } },
@@ -110,8 +132,15 @@ export class ChannelsService {
     });
   }
 
-  async getMessages(channelId: string, userId: string, cursor?: string, limit = 50) {
-    const channel = await this.prisma.channel.findUnique({ where: { id: channelId } });
+  async getMessages(
+    channelId: string,
+    userId: string,
+    cursor?: string,
+    limit = 50,
+  ) {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+    });
     if (!channel) throw new NotFoundException('Channel not found');
 
     if (channel.type === 'PRIVATE') {
@@ -121,7 +150,6 @@ export class ChannelsService {
       if (!member) throw new ForbiddenException('Access denied');
     }
 
-    // Serve from cache for the default (no cursor) case
     if (!cursor) {
       const cached = await this.redis.getMessages(channelId);
       if (cached) return cached;
@@ -136,7 +164,7 @@ export class ChannelsService {
     });
 
     const result = messages.reverse();
-    if (!cursor) this.redis.setMessages(channelId, result); // populate cache, fire-and-forget
+    if (!cursor) this.redis.setMessages(channelId, result);
     return result;
   }
 

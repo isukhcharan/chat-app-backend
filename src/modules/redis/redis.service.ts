@@ -35,8 +35,15 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async setMessages(channelId: string, messages: any[]) {
     try {
-      await this.client.set(this.key(channelId), JSON.stringify(messages), 'EX', MESSAGES_TTL_SEC);
-    } catch { /* non-fatal */ }
+      await this.client.set(
+        this.key(channelId),
+        JSON.stringify(messages),
+        'EX',
+        MESSAGES_TTL_SEC,
+      );
+    } catch {
+      /* non-fatal */
+    }
   }
 
   async pushMessage(channelId: string, message: any) {
@@ -45,9 +52,19 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       if (!raw) return; // no cache yet — next getMessages will populate it
       const msgs: any[] = JSON.parse(raw);
       msgs.push(message);
-      const trimmed = msgs.length > MAX_CACHED_MESSAGES ? msgs.slice(-MAX_CACHED_MESSAGES) : msgs;
-      await this.client.set(this.key(channelId), JSON.stringify(trimmed), 'EX', MESSAGES_TTL_SEC);
-    } catch { /* non-fatal */ }
+      const trimmed =
+        msgs.length > MAX_CACHED_MESSAGES
+          ? msgs.slice(-MAX_CACHED_MESSAGES)
+          : msgs;
+      await this.client.set(
+        this.key(channelId),
+        JSON.stringify(trimmed),
+        'EX',
+        MESSAGES_TTL_SEC,
+      );
+    } catch {
+      /* non-fatal */
+    }
   }
 
   async updateMessage(channelId: string, updated: any) {
@@ -57,17 +74,33 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       const msgs: any[] = JSON.parse(raw);
       const idx = msgs.findIndex((m) => m.id === updated.id);
       if (idx !== -1) msgs[idx] = updated;
-      await this.client.set(this.key(channelId), JSON.stringify(msgs), 'EX', MESSAGES_TTL_SEC);
-    } catch { /* non-fatal */ }
+      await this.client.set(
+        this.key(channelId),
+        JSON.stringify(msgs),
+        'EX',
+        MESSAGES_TTL_SEC,
+      );
+    } catch {
+      /* non-fatal */
+    }
   }
 
   async removeMessage(channelId: string, messageId: string) {
     try {
       const raw = await this.client.get(this.key(channelId));
       if (!raw) return;
-      const msgs: any[] = JSON.parse(raw).filter((m: any) => m.id !== messageId);
-      await this.client.set(this.key(channelId), JSON.stringify(msgs), 'EX', MESSAGES_TTL_SEC);
-    } catch { /* non-fatal */ }
+      const msgs: any[] = JSON.parse(raw).filter(
+        (m: any) => m.id !== messageId,
+      );
+      await this.client.set(
+        this.key(channelId),
+        JSON.stringify(msgs),
+        'EX',
+        MESSAGES_TTL_SEC,
+      );
+    } catch {
+      /* non-fatal */
+    }
   }
 
   async bumpReplyCount(channelId: string, parentId: string) {
@@ -76,8 +109,22 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       if (!raw) return;
       const msgs: any[] = JSON.parse(raw);
       const idx = msgs.findIndex((m) => m.id === parentId);
-      if (idx !== -1) msgs[idx] = { ...msgs[idx], _count: { ...msgs[idx]._count, replies: (msgs[idx]._count?.replies ?? 0) + 1 } };
-      await this.client.set(this.key(channelId), JSON.stringify(msgs), 'EX', MESSAGES_TTL_SEC);
-    } catch { /* non-fatal */ }
+      if (idx !== -1)
+        msgs[idx] = {
+          ...msgs[idx],
+          _count: {
+            ...msgs[idx]._count,
+            replies: (msgs[idx]._count?.replies ?? 0) + 1,
+          },
+        };
+      await this.client.set(
+        this.key(channelId),
+        JSON.stringify(msgs),
+        'EX',
+        MESSAGES_TTL_SEC,
+      );
+    } catch {
+      /* non-fatal */
+    }
   }
 }

@@ -12,21 +12,26 @@ import {
 import { ChannelsService } from './channels.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { WorkspaceMemberGuard } from '../workspaces/guards/workspace-member.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
-@Controller('channels')
-@UseGuards(JwtAuthGuard)
+@Controller('workspaces/:workspaceId/channels')
+@UseGuards(JwtAuthGuard, WorkspaceMemberGuard)
 export class ChannelsController {
   constructor(private channelsService: ChannelsService) {}
 
   @Post()
-  create(@CurrentUser() user: any, @Body() dto: CreateChannelDto) {
-    return this.channelsService.create(user.id, dto);
+  create(
+    @Param('workspaceId') workspaceId: string,
+    @CurrentUser() user: any,
+    @Body() dto: CreateChannelDto,
+  ) {
+    return this.channelsService.create(user.id, workspaceId, dto);
   }
 
   @Get()
-  findAll(@CurrentUser() user: any) {
-    return this.channelsService.findAll(user.id);
+  findAll(@Param('workspaceId') workspaceId: string, @CurrentUser() user: any) {
+    return this.channelsService.findAll(user.id, workspaceId);
   }
 
   @Get(':id')
@@ -53,7 +58,12 @@ export class ChannelsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.channelsService.getMessages(id, user.id, cursor, limit ? +limit : 50);
+    return this.channelsService.getMessages(
+      id,
+      user.id,
+      cursor,
+      limit ? +limit : 50,
+    );
   }
 
   @Get(':id/messages/:messageId/replies')

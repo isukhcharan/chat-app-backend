@@ -5,6 +5,7 @@ import { RedisModule } from './modules/redis/redis.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 import { ChannelsModule } from './modules/channels/channels.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { AiModule } from './modules/ai/ai.module';
@@ -19,6 +20,7 @@ import { ChatGatewayModule } from './modules/gateway/chat.gateway.module';
     AttachmentsModule,
     AuthModule,
     UsersModule,
+    WorkspacesModule,
     ChannelsModule,
     MessagesModule,
     AiModule,

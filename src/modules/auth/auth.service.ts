@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -17,12 +18,22 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findFirst({
-      where: { OR: [{ email: dto.email }, { username: dto.username }] },
+    const existingEmail = await this.prisma.user.findUnique({
+      where: { email: dto.email },
     });
+    if (existingEmail) {
+      throw new ConflictException(
+        'An account with this email already exists. Try signing in instead.',
+      );
+    }
 
-    if (existing) {
-      throw new ConflictException('Email or username already taken');
+    const existingUsername = await this.prisma.user.findUnique({
+      where: { username: dto.username },
+    });
+    if (existingUsername) {
+      throw new ConflictException(
+        'This username is already taken. Please choose a different one.',
+      );
     }
 
     const hashed = await bcrypt.hash(dto.password, 12);
@@ -45,23 +56,8 @@ export class AuthService {
       },
     });
 
-    // Seed new users into a default #general channel if it exists
-    const general = await this.prisma.channel.findFirst({
-      where: { name: 'general' },
-    });
-    if (general) {
-      const exists = await this.prisma.channelMember.findUnique({
-        where: { userId_channelId: { userId: user.id, channelId: general.id } },
-      });
-      if (!exists) {
-        await this.prisma.channelMember.create({
-          data: { userId: user.id, channelId: general.id },
-        });
-      }
-    }
-
     const token = this.signToken(user.id, user.username);
-    return { user, token };
+    return { user, token, hasWorkspace: false };
   }
 
   async login(dto: LoginDto) {
@@ -71,14 +67,22 @@ export class AuthService {
       },
     });
 
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      throw new NotFoundException(
+        'No account found with that email or username. Would you like to create one?',
+      );
+    }
 
     const match = await bcrypt.compare(dto.password, user.password);
-    if (!match) throw new UnauthorizedException('Invalid credentials');
+    if (!match)
+      throw new UnauthorizedException('Incorrect password. Please try again.');
 
     const { password: _, ...safe } = user;
     const token = this.signToken(user.id, user.username);
-    return { user: safe, token };
+    const workspaceCount = await this.prisma.workspaceMember.count({
+      where: { userId: user.id },
+    });
+    return { user: safe, token, hasWorkspace: workspaceCount > 0 };
   }
 
   private signToken(userId: string, username: string) {

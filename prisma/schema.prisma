@@ -38,8 +38,52 @@ model User {
   channelMemberships ChannelMember[]
   messages           Message[]
   reactions          Reaction[]
-  sentDMs            DirectMessage[] @relation("DMSender")
-  receivedDMs        DirectMessage[] @relation("DMReceiver")
+  dmReactions        DMReaction[]
+  sentDMs            DirectMessage[]   @relation("DMSender")
+  receivedDMs        DirectMessage[]   @relation("DMReceiver")
+  ownedWorkspaces    Workspace[]       @relation("WorkspaceOwner")
+  workspaceMemberships WorkspaceMember[]
+  createdInvites     WorkspaceInvite[] @relation("InviteCreator")
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId String
+  owner   User    @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  members  WorkspaceMember[]
+  invites  WorkspaceInvite[]
+  channels Channel[]
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        MemberRole @default(MEMBER)
+  joinedAt    DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+}
+
+model WorkspaceInvite {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  workspaceId String
+  createdById String
+  email       String?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
 }
 
 model Channel {
@@ -49,6 +93,9 @@ model Channel {
   type        ChannelType @default(PUBLIC)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   members  ChannelMember[]
   messages Message[]
@@ -102,14 +149,33 @@ model Reaction {
 }
 
 model DirectMessage {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   content   String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isRead    Boolean   @default(false)
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
 
   senderId   String
   receiverId String
+  replyToId  String?
 
-  sender   User @relation("DMSender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver User @relation("DMReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender    User            @relation("DMSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User            @relation("DMReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  replyTo   DirectMessage?  @relation("DMReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   DirectMessage[] @relation("DMReplies")
+  reactions DMReaction[]
+}
+
+model DMReaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  createdAt DateTime @default(now())
+
+  userId    String
+  messageId String
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId, emoji])
 }
