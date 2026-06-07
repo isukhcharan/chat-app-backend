@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DM_SELECT = {
@@ -33,31 +37,60 @@ const DM_SELECT = {
 export class DmsService {
   constructor(private prisma: PrismaService) {}
 
-  async getConversation(userId: string, partnerId: string, limit = 50) {
+  async getConversation(
+    userId: string,
+    partnerId: string,
+    limit = 50,
+    before?: string,
+  ) {
+    let createdAtFilter: { lt: Date } | undefined;
+
+    if (before) {
+      const pivot = await this.prisma.directMessage.findUnique({
+        where: { id: before },
+        select: { createdAt: true },
+      });
+      if (pivot) createdAtFilter = { lt: pivot.createdAt };
+    }
+
     return this.prisma.directMessage.findMany({
       where: {
         OR: [
           { senderId: userId, receiverId: partnerId },
           { senderId: partnerId, receiverId: userId },
         ],
+        ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
       },
       select: DM_SELECT,
       orderBy: { createdAt: 'asc' },
-      take: limit,
+      take: -limit,
     });
   }
 
-  async send(senderId: string, receiverId: string, content: string, replyToId?: string) {
+  async send(
+    senderId: string,
+    receiverId: string,
+    content: string,
+    replyToId?: string,
+  ) {
     return this.prisma.directMessage.create({
-      data: { senderId, receiverId, content, ...(replyToId ? { replyToId } : {}) },
+      data: {
+        senderId,
+        receiverId,
+        content,
+        ...(replyToId ? { replyToId } : {}),
+      },
       select: DM_SELECT,
     });
   }
 
   async edit(messageId: string, userId: string, content: string) {
-    const dm = await this.prisma.directMessage.findUnique({ where: { id: messageId } });
+    const dm = await this.prisma.directMessage.findUnique({
+      where: { id: messageId },
+    });
     if (!dm) throw new NotFoundException('Message not found');
-    if (dm.senderId !== userId) throw new ForbiddenException('Cannot edit this message');
+    if (dm.senderId !== userId)
+      throw new ForbiddenException('Cannot edit this message');
 
     return this.prisma.directMessage.update({
       where: { id: messageId },
@@ -67,9 +100,12 @@ export class DmsService {
   }
 
   async delete(messageId: string, userId: string) {
-    const dm = await this.prisma.directMessage.findUnique({ where: { id: messageId } });
+    const dm = await this.prisma.directMessage.findUnique({
+      where: { id: messageId },
+    });
     if (!dm) throw new NotFoundException('Message not found');
-    if (dm.senderId !== userId) throw new ForbiddenException('Cannot delete this message');
+    if (dm.senderId !== userId)
+      throw new ForbiddenException('Cannot delete this message');
 
     await this.prisma.directMessage.delete({ where: { id: messageId } });
     return { id: messageId, senderId: dm.senderId, receiverId: dm.receiverId };
@@ -83,12 +119,18 @@ export class DmsService {
     if (existing) {
       await this.prisma.dMReaction.delete({ where: { id: existing.id } });
     } else {
-      await this.prisma.dMReaction.create({ data: { userId, messageId, emoji } });
+      await this.prisma.dMReaction.create({
+        data: { userId, messageId, emoji },
+      });
     }
 
     return this.prisma.dMReaction.findMany({
       where: { messageId },
-      select: { id: true, emoji: true, user: { select: { id: true, username: true } } },
+      select: {
+        id: true,
+        emoji: true,
+        user: { select: { id: true, username: true } },
+      },
     });
   }
 

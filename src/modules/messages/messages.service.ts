@@ -10,6 +10,7 @@ const MESSAGE_SELECT = {
   id: true,
   content: true,
   isAI: true,
+  isSystem: true,
   createdAt: true,
   editedAt: true,
   parentId: true,
@@ -45,9 +46,21 @@ export class MessagesService {
   }
 
   // Used when the ID is pre-generated (background Postgres write after Redis confirm)
-  async createWithId(id: string, channelId: string, userId: string, dto: CreateMessageDto & { attachments?: any[] }) {
+  async createWithId(
+    id: string,
+    channelId: string,
+    userId: string,
+    dto: CreateMessageDto & { attachments?: any[] },
+  ) {
     return this.prisma.message.create({
-      data: { id, content: dto.content, channelId, userId, parentId: dto.parentId, attachments: dto.attachments ?? [] },
+      data: {
+        id,
+        content: dto.content,
+        channelId,
+        userId,
+        parentId: dto.parentId,
+        attachments: dto.attachments ?? [],
+      },
       select: MESSAGE_SELECT,
     });
   }
@@ -59,10 +72,20 @@ export class MessagesService {
     });
   }
 
+  async createSystemMessage(channelId: string, userId: string, content: string) {
+    return this.prisma.message.create({
+      data: { content, channelId, userId, isSystem: true },
+      select: MESSAGE_SELECT,
+    });
+  }
+
   async update(messageId: string, userId: string, content: string) {
-    const message = await this.prisma.message.findUnique({ where: { id: messageId } });
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
-    if (message.userId !== userId) throw new ForbiddenException('Not your message');
+    if (message.userId !== userId)
+      throw new ForbiddenException('Not your message');
 
     return this.prisma.message.update({
       where: { id: messageId },
@@ -72,9 +95,12 @@ export class MessagesService {
   }
 
   async delete(messageId: string, userId: string) {
-    const message = await this.prisma.message.findUnique({ where: { id: messageId } });
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
-    if (message.userId !== userId) throw new ForbiddenException('Not your message');
+    if (message.userId !== userId)
+      throw new ForbiddenException('Not your message');
 
     await this.prisma.message.delete({ where: { id: messageId } });
     return { id: messageId, channelId: message.channelId };

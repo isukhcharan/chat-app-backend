@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsArray, MinLength, MaxLength } from 'class-validator';
 import { ChannelType } from '@prisma/client';
 
 export class CreateChannelDto {
@@ -14,4 +14,9 @@ export class CreateChannelDto {
   @IsEnum(ChannelType)
   @IsOptional()
   type?: ChannelType;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  memberIds?: string[];
 }

@@ -11,6 +11,7 @@ const MESSAGE_SELECT = {
   id: true,
   content: true,
   isAI: true,
+  isSystem: true,
   createdAt: true,
   editedAt: true,
   parentId: true,
@@ -38,13 +39,17 @@ export class ChannelsService {
   async create(userId: string, workspaceId: string, dto: CreateChannelDto) {
     const name = dto.name.toLowerCase().replace(/\s+/g, '-');
 
+    const extraMembers = (dto.memberIds ?? [])
+      .filter((id) => id !== userId)
+      .map((id) => ({ userId: id }));
+
     return this.prisma.channel.create({
       data: {
         name,
         description: dto.description,
         type: dto.type || 'PUBLIC',
         workspaceId,
-        members: { create: { userId, role: 'OWNER' } },
+        members: { create: [{ userId, role: 'OWNER' }, ...extraMembers] },
       },
     });
   }
@@ -166,6 +171,16 @@ export class ChannelsService {
     const result = messages.reverse();
     if (!cursor) this.redis.setMessages(channelId, result);
     return result;
+  }
+
+  async addMember(channelId: string, targetUserId: string) {
+    const existing = await this.prisma.channelMember.findUnique({
+      where: { userId_channelId: { userId: targetUserId, channelId } },
+    });
+    if (existing) return existing;
+    return this.prisma.channelMember.create({
+      data: { userId: targetUserId, channelId },
+    });
   }
 
   async getThreadReplies(messageId: string) {

@@ -8,7 +8,14 @@ import { DmsModule } from '../dms/dms.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [MessagesModule, AiModule, ChannelsModule, UsersModule, DmsModule, AuthModule],
+  imports: [
+    MessagesModule,
+    AiModule,
+    ChannelsModule,
+    UsersModule,
+    DmsModule,
+    AuthModule,
+  ],
   providers: [ChatGateway],
 })
 export class ChatGatewayModule {}

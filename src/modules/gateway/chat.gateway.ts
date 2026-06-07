@@ -444,6 +444,53 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(room).emit('ai:thinking_done', { channelId });
   }
 
+  @SubscribeMessage('channel:add_member')
+  async handleAddMember(
+    @ConnectedSocket() client: AuthSocket,
+    @MessageBody()
+    {
+      channelId,
+      workspaceId,
+      userId,
+    }: { channelId: string; workspaceId: string; userId: string },
+  ) {
+    if (!client.userId || !workspaceId) return;
+
+    await this.channelsService.addMember(channelId, userId);
+
+    const addedUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, displayName: true, avatarUrl: true },
+    });
+    if (!addedUser) return;
+
+    // Join any active sockets of the newly added user to this channel room
+    this.userSockets.get(userId)?.forEach((socketId) => {
+      this.server.in(socketId).socketsJoin(channelRoom(workspaceId, channelId));
+    });
+
+    const room = channelRoom(workspaceId, channelId);
+
+    // Persist the system message then broadcast it as a regular message
+    const systemMsg = await this.messagesService.createSystemMessage(
+      channelId,
+      client.userId,
+      `${client.displayName} added ${addedUser.displayName} to the channel.`,
+    );
+    this.server.to(room).emit('message:new', systemMsg);
+
+    this.server.to(room).emit('channel:member_added', {
+      channelId,
+      workspaceId,
+      addedUser,
+      addedBy: {
+        id: client.userId,
+        username: client.username,
+        displayName: client.displayName,
+      },
+    });
+  }
+
   @SubscribeMessage('channel:mark_read')
   async handleChannelMarkRead(
     @ConnectedSocket() client: AuthSocket,
@@ -483,6 +530,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       data.content,
       data.replyToId,
     );
+    console.log(JSON.stringify(dm));
     this.emitToDmPair(client.userId, data.receiverId, 'dm:new', dm);
   }
 

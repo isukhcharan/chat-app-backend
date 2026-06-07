@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Param,
+  Query,
   UseGuards,
   HttpCode,
 } from '@nestjs/common';
@@ -25,8 +26,9 @@ export class DmsController {
   getConversation(
     @CurrentUser() user: any,
     @Param('partnerId') partnerId: string,
+    @Query('before') before?: string,
   ) {
-    return this.dmsService.getConversation(user.id, partnerId);
+    return this.dmsService.getConversation(user.id, partnerId, 50, before);
   }
 
   @Post(':partnerId/read')

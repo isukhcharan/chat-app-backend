@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   HttpCode,
+  BadRequestException,
 } from '@nestjs/common';
 import { ChannelsService } from './channels.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
@@ -64,6 +65,16 @@ export class ChannelsController {
       cursor,
       limit ? +limit : 50,
     );
+  }
+
+  @Post(':id/members')
+  @HttpCode(200)
+  addMember(
+    @Param('id') id: string,
+    @Body('userId') userId: string,
+  ) {
+    if (!userId) throw new BadRequestException('userId is required');
+    return this.channelsService.addMember(id, userId);
   }
 
   @Get(':id/messages/:messageId/replies')
